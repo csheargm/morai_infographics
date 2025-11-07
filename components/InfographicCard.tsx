@@ -7,7 +7,7 @@ interface InfographicCardProps {
 
 const InfographicCard: React.FC<InfographicCardProps> = ({ principle }) => {
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 flex flex-col items-center text-center hover:shadow-xl transition-shadow duration-300">
+    <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 flex flex-col items-center text-center transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-2xl">
       <div className="text-5xl md:text-6xl mb-4" role="img" aria-label={principle.title}>
         {principle.icon}
       </div>
