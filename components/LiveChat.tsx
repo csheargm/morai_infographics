@@ -241,11 +241,6 @@ const LiveChat: React.FC = () => {
 
       // Always create a new GoogleGenAI instance for the most up-to-date API key
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-      // Add Anna's introduction to the conversation history immediately to display it
-      // This ensures the text is shown even if TTS fails later, as long as an API key is selected.
-      setConversationHistory([{ speaker: 'Anna', text: initialAnnaPrompt }]);
-      transcriptionHistoryRef.current = [{ speaker: 'Anna', text: initialAnnaPrompt }];
       
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -275,43 +270,47 @@ const LiveChat: React.FC = () => {
       let initialAudioPlayedOrQueued = false;
       try {
         const initialResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash-preview-tts",
-          contents: [{ parts: [{ text: initialAnnaPrompt }] }],
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+            model: "gemini-2.5-flash-preview-tts",
+            contents: [{ parts: [{ text: initialAnnaPrompt }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+                },
             },
-          },
         });
 
         const base64InitialAudio = initialResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (base64InitialAudio && outputAudioContextRef.current) {
-          try {
             const initialAudioBuffer = await decodeAudioData(
-              decode(base64InitialAudio),
-              outputAudioContextRef.current,
-              24000,
-              1,
+                decode(base64InitialAudio),
+                outputAudioContextRef.current,
+                24000,
+                1,
             );
+            
+            // On full success, add text to history right before playing to sync them.
             if (isPlaying) {
+              setConversationHistory([{ speaker: 'Anna', text: initialAnnaPrompt }]);
+              transcriptionHistoryRef.current = [{ speaker: 'Anna', text: initialAnnaPrompt }];
               scheduleAudioPlayback(initialAudioBuffer);
             } else {
+              // If paused, queue audio and show text immediately as a fallback.
+              setConversationHistory([{ speaker: 'Anna', text: initialAnnaPrompt }]);
+              transcriptionHistoryRef.current = [{ speaker: 'Anna', text: initialAnnaPrompt }];
               pendingAudioQueueRef.current.push(initialAudioBuffer);
             }
             initialAudioPlayedOrQueued = true;
             console.log("Anna's introduction audio scheduled.");
-          } catch (audioDecodeError) {
-            console.error("Error decoding initial audio data:", audioDecodeError);
-            setStatusMessage('Error processing Anna\'s introduction audio.');
-          }
         } else {
-          console.warn("No audio data received for Anna's introduction.");
-          setStatusMessage('Anna\'s introduction audio unavailable.');
+            throw new Error("No audio data received for Anna's introduction.");
         }
       } catch (error) {
-        console.error("Error generating Anna's introduction via TTS:", error);
-        setStatusMessage('Error generating Anna\'s introduction. Check API key/billing.');
+          console.error("Error generating or processing Anna's introduction via TTS:", error);
+          setStatusMessage("Could not play introduction audio. Displaying text instead.");
+          // Fallback for any error: just show the text.
+          setConversationHistory([{ speaker: 'Anna', text: initialAnnaPrompt }]);
+          transcriptionHistoryRef.current = [{ speaker: 'Anna', text: initialAnnaPrompt }];
       }
       // --- End of Anna's initial introduction ---
 
@@ -477,7 +476,19 @@ const LiveChat: React.FC = () => {
 
       <div ref={scrollRef} className="h-80 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50 text-left">
         {conversationHistory.length === 0 && !isChatActive && (
-          <p className="text-gray-500 text-center italic">Start a conversation to hear Anna discuss Responsible AI.</p>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500 text-center italic">Start a conversation to hear Anna discuss Responsible AI.</p>
+          </div>
+        )}
+        {isChatActive && conversationHistory.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <svg className="animate-spin h-8 w-8 text-indigo-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-lg font-semibold text-indigo-700">{statusMessage}</p>
+            <p className="text-gray-500 text-sm mt-1">This may take a few seconds.</p>
+          </div>
         )}
         {conversationHistory.map((turn, index) => (
           <div key={index} className={`mb-2 ${turn.speaker === 'user' ? 'text-right' : 'text-left'}`}>

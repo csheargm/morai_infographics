@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// FIX: Corrected typo from RESPONSIBLE_AI_PRINCIPIPLES to RESPONSIBLE_AI_PRINCIPLES.
 import { RESPONSIBLE_AI_PRINCIPLES } from './constants';
 import InfographicCard from './components/InfographicCard';
 import LiveChat from './components/LiveChat';
@@ -42,9 +43,7 @@ function App() {
 
       <footer className="mt-16 text-center text-gray-500 text-sm">
         <p>
-          © 2025 Responsible AI Infographic. All rights reserved. <br />
-          Developed in collaboration with the MORAI (Multicultural Open Responsible AI) Working Group. <br />
-          Learn more at <a href="https://github.com/aivisionforum/ai-ethics-governance" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">aivisionforum/ai-ethics-governance</a>
+          © 2025 Responsible AI Infographic. All rights reserved.
         </p>
       </footer>
     </div>
