@@ -42,7 +42,7 @@ function App() {
 
       <footer className="mt-16 text-center text-gray-500 text-sm">
         <p>
-          © 2024 Responsible AI Infographic. All rights reserved. <br />
+          © 2025 Responsible AI Infographic. All rights reserved. <br />
           Developed in collaboration with the MORAI (Multicultural Open Responsible AI) Working Group. <br />
           Learn more at <a href="https://github.com/aivisionforum/ai-ethics-governance" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">aivisionforum/ai-ethics-governance</a>
         </p>

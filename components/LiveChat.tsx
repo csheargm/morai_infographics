@@ -166,13 +166,17 @@ const LiveChat: React.FC = () => {
     sourceNode.connect(outputGainNodeRef.current); // Connect to gain node
     sourceNode.addEventListener('ended', () => {
       outputSourcesRef.current.delete(sourceNode);
+      // If no more audio is playing and we're not paused, transition to listening
+      if (outputSourcesRef.current.size === 0 && pendingAudioQueueRef.current.length === 0 && isPlaying) {
+        setStatusMessage('Listening for your input...');
+      }
     });
 
     sourceNode.start(nextStartTimeRef.current);
     nextStartTimeRef.current = nextStartTimeRef.current + audioBuffer.duration;
     outputSourcesRef.current.add(sourceNode);
     setStatusMessage('Anna is speaking...');
-  }, []);
+  }, [isPlaying]); // Added isPlaying to dependencies
 
   const togglePlayPause = useCallback(() => {
     setIsPlaying(prevIsPlaying => {
@@ -238,6 +242,11 @@ const LiveChat: React.FC = () => {
       // Always create a new GoogleGenAI instance for the most up-to-date API key
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+      // Add Anna's introduction to the conversation history immediately to display it
+      // This ensures the text is shown even if TTS fails later, as long as an API key is selected.
+      setConversationHistory([{ speaker: 'Anna', text: initialAnnaPrompt }]);
+      transcriptionHistoryRef.current = [{ speaker: 'Anna', text: initialAnnaPrompt }];
+      
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -263,39 +272,47 @@ const LiveChat: React.FC = () => {
 
       // --- Play Anna's initial introduction using generateContent for TTS ---
       setStatusMessage('Getting Anna\'s introduction ready...');
-      const initialResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: initialAnnaPrompt }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+      let initialAudioPlayedOrQueued = false;
+      try {
+        const initialResponse = await ai.models.generateContent({
+          model: "gemini-2.5-flash-preview-tts",
+          contents: [{ parts: [{ text: initialAnnaPrompt }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+            },
           },
-        },
-      });
+        });
 
-      const base64InitialAudio = initialResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64InitialAudio && outputAudioContextRef.current) {
-        try {
-          const initialAudioBuffer = await decodeAudioData(
-            decode(base64InitialAudio),
-            outputAudioContextRef.current,
-            24000,
-            1,
-          );
-          if (isPlaying) {
-            scheduleAudioPlayback(initialAudioBuffer);
-          } else {
-            pendingAudioQueueRef.current.push(initialAudioBuffer);
+        const base64InitialAudio = initialResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64InitialAudio && outputAudioContextRef.current) {
+          try {
+            const initialAudioBuffer = await decodeAudioData(
+              decode(base64InitialAudio),
+              outputAudioContextRef.current,
+              24000,
+              1,
+            );
+            if (isPlaying) {
+              scheduleAudioPlayback(initialAudioBuffer);
+            } else {
+              pendingAudioQueueRef.current.push(initialAudioBuffer);
+            }
+            initialAudioPlayedOrQueued = true;
+            console.log("Anna's introduction audio scheduled.");
+          } catch (audioDecodeError) {
+            console.error("Error decoding initial audio data:", audioDecodeError);
+            setStatusMessage('Error processing Anna\'s introduction audio.');
           }
-        } catch (audioDecodeError) {
-          console.error("Error decoding initial audio data:", audioDecodeError);
-          setStatusMessage('Error processing Anna\'s introduction.');
+        } else {
+          console.warn("No audio data received for Anna's introduction.");
+          setStatusMessage('Anna\'s introduction audio unavailable.');
         }
+      } catch (error) {
+        console.error("Error generating Anna's introduction via TTS:", error);
+        setStatusMessage('Error generating Anna\'s introduction. Check API key/billing.');
       }
-      // Add Anna's introduction to the conversation history
-      setConversationHistory(prev => [...prev, { speaker: 'Anna', text: initialAnnaPrompt }]);
-      transcriptionHistoryRef.current.push({ speaker: 'Anna', text: initialAnnaPrompt });
       // --- End of Anna's initial introduction ---
 
 
@@ -330,8 +347,13 @@ const LiveChat: React.FC = () => {
           onopen: () => {
             console.debug('Live API session opened.');
             // Anna has already introduced herself, so we are now listening for user input.
-            if (isPlaying) {
+            // This status update should reflect the true state after intro audio.
+            if (!initialAudioPlayedOrQueued && isPlaying) { // If intro audio failed or wasn't queued
               setStatusMessage('Listening for your input...');
+            } else if (isPlaying) {
+              // If intro audio was played/queued, status will be updated by scheduleAudioPlayback's 'ended' listener
+              // or stay 'Anna is speaking...' until it finishes.
+              // Do nothing here to avoid overwriting "Anna is speaking..." prematurely.
             } else {
               setStatusMessage('Paused.');
             }
