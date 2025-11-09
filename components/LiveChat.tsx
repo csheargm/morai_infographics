@@ -55,26 +55,38 @@ function createBlob(data: Float32Array): GenAIBlob {
 
 // Helper function to render text with clickable links
 const renderTextWithClickableLinks = (text: string) => {
-  // Regex to detect URLs (http/https)
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  // Enhanced regex to detect URLs including http/https, www. and common naked domains
+  const urlRegex = /\b(?:https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(?:com|org|net|gov|edu|io|co|ai)(?:\/[^\s]*)?)\b/gi;
   const parts = text.split(urlRegex);
+  const matches = text.match(urlRegex) || [];
 
+  let matchIndex = 0;
   return parts.map((part, index) => {
-    if (part.match(urlRegex)) {
+    // If the part is an empty string and there's a corresponding match, it means a URL was found.
+    // We need to carefully re-insert the actual matched URL from the `matches` array.
+    if (index > 0 && matches[matchIndex]) {
+      const matchedUrl = matches[matchIndex];
+      matchIndex++;
+      // Prepend 'https://' if the URL doesn't already have a protocol for proper linking
+      const href = matchedUrl.startsWith('http://') || matchedUrl.startsWith('https://')
+                   ? matchedUrl
+                   : `https://${matchedUrl}`;
       return (
-        <a 
-          key={index} 
-          href={part} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-blue-600 hover:underline break-all"
-          style={{ pointerEvents: 'auto' }} // Ensure the link is clickable
-        >
-          {part}
-        </a>
+        <React.Fragment key={index}>
+          <a 
+            href={href} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-blue-600 hover:underline break-all"
+            style={{ pointerEvents: 'auto' }} // Ensure the link is clickable
+          >
+            {matchedUrl}
+          </a>
+          {part} {/* Remaining text after the current match */}
+        </React.Fragment>
       );
     }
-    return part;
+    return <React.Fragment key={index}>{part}</React.Fragment>;
   });
 };
 
@@ -421,7 +433,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
               currentInputTranscriptionRef.current = '';
               currentOutputTranscriptionRef.current = '';
               setCurrentInputTranscription('');
-              setCurrentOutputTranscription('');
+              setCurrentInputTranscription(''); // Clear for display
 
               if (isPlaying) {
                 setStatusMessage('Listening for your input...'); // Ready for user input or next AI turn
