@@ -3,11 +3,14 @@ import { RESPONSIBLE_AI_PRINCIPLES } from './constants';
 import InfographicCard from './components/InfographicCard';
 import LiveChat from './components/LiveChat';
 import PrincipleDetailPopover from './components/PrincipleDetailPopover';
+import DeepDiveChatModal from './components/DeepDiveChatModal'; // New import
 import { Principle } from './types';
 
 function App() {
   const [showLiveChat, setShowLiveChat] = useState(false);
   const [hoveredPrincipleInfo, setHoveredPrincipleInfo] = useState<{ principle: Principle, rect: DOMRect } | null>(null);
+  const [showDeepDiveChat, setShowDeepDiveChat] = useState(false); // New state for deep dive modal
+  const [selectedDeepDivePrinciple, setSelectedDeepDivePrinciple] = useState<Principle | null>(null); // New state for deep dive principle
   const dismissTimeoutRef = useRef<number | null>(null); // Ref to store timeout ID
 
   // Function to clear the dismissal timeout
@@ -46,6 +49,19 @@ function App() {
   // Handler for closing the LiveChat from within the LiveChat component
   const handleCloseLiveChat = useCallback(() => {
     setShowLiveChat(false);
+  }, []);
+
+  // Handler to open Deep Dive Chat
+  const handleOpenDeepDiveChat = useCallback((principle: Principle) => {
+    setSelectedDeepDivePrinciple(principle);
+    setShowDeepDiveChat(true);
+    setHoveredPrincipleInfo(null); // Dismiss popover when deep dive chat opens
+  }, []);
+
+  // Handler to close Deep Dive Chat
+  const handleCloseDeepDiveChat = useCallback(() => {
+    setShowDeepDiveChat(false);
+    setSelectedDeepDivePrinciple(null);
   }, []);
 
 
@@ -100,6 +116,15 @@ function App() {
           principleInfo={hoveredPrincipleInfo}
           onMouseEnterPopover={handlePopoverMouseEnter}
           onMouseLeavePopover={handlePopoverMouseLeave}
+          onOpenDeepDiveChat={handleOpenDeepDiveChat} // Pass handler for deep dive chat
+        />
+      )}
+
+      {/* Deep Dive Chat Modal */}
+      {showDeepDiveChat && selectedDeepDivePrinciple && (
+        <DeepDiveChatModal
+          principle={selectedDeepDivePrinciple}
+          onClose={handleCloseDeepDiveChat}
         />
       )}
     </div>

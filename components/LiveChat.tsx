@@ -56,7 +56,8 @@ function createBlob(data: Float32Array): GenAIBlob {
 // Helper function to render text with clickable links
 const renderTextWithClickableLinks = (text: string) => {
   // Enhanced regex to detect URLs including http/https, www. and common naked domains
-  const urlRegex = /\b(?:https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(?:com|org|net|gov|edu|io|co|ai)(?:\/[^\s]*)?)\b/gi;
+  // Added a check for domain parts to be at least 2 characters (e.g., .co, .ai)
+  const urlRegex = /\b(?:https?:\/\/(?:www\.)?|www\.|[a-zA-Z0-9-]+\.)(?:\w{2,}\.)?(?:[a-zA-Z0-9-]+\.(?:com|org|net|gov|edu|io|co|ai|dev|app|blog|info|biz|site|tech|online|store)(?:\/[^\s]*)?|\w{2,}(?:\/[^\s]*)?)\b/gi;
   const parts = text.split(urlRegex);
   const matches = text.match(urlRegex) || [];
 
@@ -388,7 +389,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
       scriptProcessor.connect(inputAudioCtx.destination);
 
       // System instruction for Anna's ongoing persona
-      const systemInstruction = `You are an expert named Anna on Responsible AI principles. Your goal is to explain and discuss the 8 core principles (Fairness, Transparency, Accountability, Privacy, Robustness, Human-Centered, Sustainability, and Inclusiveness) based on the infographic provided on this website. You also have access to up-to-date information via Google Search to answer questions about recent events or current topics related to Responsible AI. Provide insightful, clear, and engaging answers, and cite your sources by mentioning "According to a recent search" or similar, and listing the full URLs you found, including 'https://' or 'http://'.`;
+      const systemInstruction = `You are an expert named Anna on Responsible AI principles. Your goal is to explain and discuss the 8 core principles (Fairness, Transparency, Accountability, Privacy, Robustness, Human-Centered, Sustainability, and Inclusiveness) based on the infographic provided on this website. You also have access to up-to-date information via Google Search to answer questions about recent events or current topics related to Responsible AI. Provide insightful, clear, and engaging answers. When you mention a URL from your search, you MUST state the full URL, including 'https://' or 'http://' (e.g., 'https://www.example.com'), to help the user access the source.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
