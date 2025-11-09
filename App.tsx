@@ -1,11 +1,53 @@
-import React, { useState } from 'react';
-// FIX: Corrected typo from RESPONSIBLE_AI_PRINCIPIPLES to RESPONSIBLE_AI_PRINCIPLES.
+import React, { useState, useRef, useCallback } from 'react';
 import { RESPONSIBLE_AI_PRINCIPLES } from './constants';
 import InfographicCard from './components/InfographicCard';
 import LiveChat from './components/LiveChat';
+import PrincipleDetailPopover from './components/PrincipleDetailPopover';
+import { Principle } from './types';
 
 function App() {
   const [showLiveChat, setShowLiveChat] = useState(false);
+  const [hoveredPrincipleInfo, setHoveredPrincipleInfo] = useState<{ principle: Principle, rect: DOMRect } | null>(null);
+  const dismissTimeoutRef = useRef<number | null>(null); // Ref to store timeout ID
+
+  // Function to clear the dismissal timeout
+  const clearTimeoutHandler = useCallback(() => {
+    if (dismissTimeoutRef.current) {
+      clearTimeout(dismissTimeoutRef.current);
+      dismissTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Handler for when mouse enters a card
+  const handleCardMouseEnter = useCallback((principle: Principle, rect: DOMRect) => {
+    clearTimeoutHandler(); // Clear any pending dismissal
+    setHoveredPrincipleInfo({ principle, rect });
+  }, [clearTimeoutHandler]);
+
+  // Handler for when mouse leaves a card
+  const handleCardMouseLeave = useCallback(() => {
+    dismissTimeoutRef.current = window.setTimeout(() => {
+      setHoveredPrincipleInfo(null);
+      dismissTimeoutRef.current = null;
+    }, 100); // Small delay to allow mouse to move to popover
+  }, []);
+
+  // Handler for when mouse enters the popover
+  const handlePopoverMouseEnter = useCallback(() => {
+    clearTimeoutHandler(); // Prevent popover from dismissing if mouse enters it
+  }, [clearTimeoutHandler]);
+
+  // Handler for when mouse leaves the popover (or explicit close)
+  const handlePopoverMouseLeave = useCallback(() => {
+    clearTimeoutHandler(); // Clear any pending timeout from card
+    setHoveredPrincipleInfo(null); // Immediately dismiss popover
+  }, [clearTimeoutHandler]);
+
+  // Handler for closing the LiveChat from within the LiveChat component
+  const handleCloseLiveChat = useCallback(() => {
+    setShowLiveChat(false);
+  }, []);
+
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-16">
@@ -20,7 +62,12 @@ function App() {
 
       <main className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
         {RESPONSIBLE_AI_PRINCIPLES.map((principle) => (
-          <InfographicCard key={principle.id} principle={principle} />
+          <InfographicCard
+            key={principle.id}
+            principle={principle}
+            onMouseEnterCard={handleCardMouseEnter}
+            onMouseLeaveCard={handleCardMouseLeave}
+          />
         ))}
       </main>
 
@@ -36,7 +83,7 @@ function App() {
         </button>
         {showLiveChat && (
           <div id="live-chat-panel" className="mt-8">
-            <LiveChat />
+            <LiveChat onCloseChat={handleCloseLiveChat} />
           </div>
         )}
       </section>
@@ -46,6 +93,15 @@ function App() {
           © 2025 Responsible AI Infographic. All rights reserved.
         </p>
       </footer>
+
+      {/* Principle Detail Popover */}
+      {hoveredPrincipleInfo && (
+        <PrincipleDetailPopover
+          principleInfo={hoveredPrincipleInfo}
+          onMouseEnterPopover={handlePopoverMouseEnter}
+          onMouseLeavePopover={handlePopoverMouseLeave}
+        />
+      )}
     </div>
   );
 }

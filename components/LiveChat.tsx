@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob as GenAIBlob } from '@google/genai';
+import { ChatTurn } from '../types';
 
 // Helper functions for audio encoding/decoding as per guidelines
 function decode(base64: string): Uint8Array {
@@ -52,16 +53,40 @@ function createBlob(data: Float32Array): GenAIBlob {
   };
 }
 
-interface ChatTurn {
-  speaker: 'user' | 'Anna'; // Anna (female, expert)
-  text: string;
+// Helper function to render text with clickable links
+const renderTextWithClickableLinks = (text: string) => {
+  // Regex to detect URLs (http/https)
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-600 hover:underline break-all"
+          style={{ pointerEvents: 'auto' }} // Ensure the link is clickable
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
+interface LiveChatProps {
+  onCloseChat: () => void;
 }
 
 const initialAnnaPrompt = "Hello! I'm Anna, an expert in Responsible AI. I'm here to discuss the 8 core principles that guide ethical AI development. Feel free to ask me about Fairness, Transparency, Accountability, Privacy, Robustness, Human-Centered, Sustainability, or Inclusiveness!";
 
-const LiveChat: React.FC = () => {
+const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
   const [isChatActive, setIsChatActive] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('Click "Start Conversation" to begin.');
+  const [statusMessage, setStatusMessage] = useState('Initializing...'); // Updated initial status
   const [currentInputTranscription, setCurrentInputTranscription] = useState('');
   const [currentOutputTranscription, setCurrentOutputTranscription] = useState('');
   const [conversationHistory, setConversationHistory] = useState<ChatTurn[]>([]);
@@ -134,22 +159,31 @@ const LiveChat: React.FC = () => {
     transcriptionHistoryRef.current = [];
     currentInputTranscriptionRef.current = '';
     currentOutputTranscriptionRef.current = '';
-    setStatusMessage('Click "Start Conversation" to begin.');
+    setStatusMessage('Initializing...'); // Reset status message
     setIsPlaying(true); // Reset play state
   }, []);
 
+  // Auto-start chat when component mounts
   useEffect(() => {
+    if (!isChatActive) { // Only start if not already active (prevents re-triggering on re-renders)
+      startChat();
+    }
+
+    // Cleanup function: stop chat when component unmounts
     return () => {
-      closeSession();
+      stopChat(); // Ensure session is closed when component is removed
     };
-  }, [closeSession]);
+  }, []); // Empty dependency array ensures this runs once on mount and once on unmount
+
 
   const handleApiKeySelection = async () => {
     if (window.aistudio && window.aistudio.openSelectKey) {
       await window.aistudio.openSelectKey();
       // Assume success after opening the dialog, race condition addressed by recreating GoogleGenAI on startChat
       setApiKeyPromptVisible(false);
-      setStatusMessage('API Key selected. Click "Start Conversation" again.');
+      // After selection, the user will likely close the chat panel and reopen to try again,
+      // which will re-trigger the auto-start.
+      setStatusMessage('API Key selected. You can now restart the conversation.');
     } else {
       setStatusMessage('API Key selection tool not available.');
     }
@@ -166,7 +200,6 @@ const LiveChat: React.FC = () => {
     sourceNode.connect(outputGainNodeRef.current); // Connect to gain node
     sourceNode.addEventListener('ended', () => {
       outputSourcesRef.current.delete(sourceNode);
-      // If no more audio is playing and we're not paused, transition to listening
       if (outputSourcesRef.current.size === 0 && pendingAudioQueueRef.current.length === 0 && isPlaying) {
         setStatusMessage('Listening for your input...');
       }
@@ -201,7 +234,7 @@ const LiveChat: React.FC = () => {
             scheduleAudioPlayback(audioBuffer);
           }
         }
-        if (currentOutputTranscriptionRef.current) {
+        if (currentOutputTranscriptionRef.current || outputSourcesRef.current.size > 0) {
           setStatusMessage('Anna is speaking...');
         } else {
           setStatusMessage('Listening for your input...');
@@ -219,7 +252,14 @@ const LiveChat: React.FC = () => {
     }
   }, []);
 
+  const stopChat = useCallback(() => {
+    // This function is for internal cleanup of the LiveChat component
+    setIsChatActive(false); // Ensure local state reflects chat is not active
+    closeSession(); // Perform all resource cleanup
+  }, [closeSession]);
+
   const startChat = async () => {
+    // This function is called automatically on mount
     closeSession(); // Ensure any previous session is closed first
 
     setIsChatActive(true);
@@ -232,7 +272,7 @@ const LiveChat: React.FC = () => {
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (!hasKey) {
-          setStatusMessage('No API Key selected. Please select an API key.');
+          setStatusMessage('No API Key selected. Please select an API key to start.');
           setApiKeyPromptVisible(true);
           setIsChatActive(false); // Do not start chat if no key selected
           return;
@@ -267,7 +307,6 @@ const LiveChat: React.FC = () => {
 
       // --- Play Anna's initial introduction using generateContent for TTS ---
       setStatusMessage('Getting Anna\'s introduction ready...');
-      let initialAudioPlayedOrQueued = false;
       try {
         const initialResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
@@ -300,7 +339,6 @@ const LiveChat: React.FC = () => {
               transcriptionHistoryRef.current = [{ speaker: 'Anna', text: initialAnnaPrompt }];
               pendingAudioQueueRef.current.push(initialAudioBuffer);
             }
-            initialAudioPlayedOrQueued = true;
             console.log("Anna's introduction audio scheduled.");
         } else {
             throw new Error("No audio data received for Anna's introduction.");
@@ -330,7 +368,7 @@ const LiveChat: React.FC = () => {
           // For any error sending input, prompt for API key
           setStatusMessage('API Key issue or network error. Please select an API key.');
           setApiKeyPromptVisible(true);
-          stopChat();
+          stopChat(); // Stop the chat locally
         });
       };
 
@@ -338,22 +376,16 @@ const LiveChat: React.FC = () => {
       scriptProcessor.connect(inputAudioCtx.destination);
 
       // System instruction for Anna's ongoing persona
-      const systemInstruction = `You are an expert named Anna on Responsible AI principles. Your goal is to explain and discuss the 8 core principles (Fairness, Transparency, Accountability, Privacy, Robustness, Human-Centered, Sustainability, and Inclusiveness) based on the infographic provided on this website. Provide insightful, clear, and engaging answers.`;
+      const systemInstruction = `You are an expert named Anna on Responsible AI principles. Your goal is to explain and discuss the 8 core principles (Fairness, Transparency, Accountability, Privacy, Robustness, Human-Centered, Sustainability, and Inclusiveness) based on the infographic provided on this website. You also have access to up-to-date information via Google Search to answer questions about recent events or current topics related to Responsible AI. Provide insightful, clear, and engaging answers, and cite your sources by mentioning "According to a recent search" or similar, and listing the full URLs you found, including 'https://' or 'http://'.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
           onopen: () => {
             console.debug('Live API session opened.');
-            // Anna has already introduced herself, so we are now listening for user input.
-            // This status update should reflect the true state after intro audio.
-            if (!initialAudioPlayedOrQueued && isPlaying) { // If intro audio failed or wasn't queued
+            if (!currentOutputTranscriptionRef.current && isPlaying) {
               setStatusMessage('Listening for your input...');
-            } else if (isPlaying) {
-              // If intro audio was played/queued, status will be updated by scheduleAudioPlayback's 'ended' listener
-              // or stay 'Anna is speaking...' until it finishes.
-              // Do nothing here to avoid overwriting "Anna is speaking..." prematurely.
-            } else {
+            } else if (!isPlaying) {
               setStatusMessage('Paused.');
             }
           },
@@ -378,7 +410,10 @@ const LiveChat: React.FC = () => {
               }
               // Always add Anna's output to history if it's not empty
               if (fullOutputTranscription) {
-                transcriptionHistoryRef.current.push({ speaker: 'Anna', text: fullOutputTranscription });
+                transcriptionHistoryRef.current.push({ 
+                  speaker: 'Anna', 
+                  text: fullOutputTranscription, 
+                });
               }
 
               setConversationHistory([...transcriptionHistoryRef.current]);
@@ -432,7 +467,7 @@ const LiveChat: React.FC = () => {
             setStatusMessage(`Error: ${e.message}. See console for details.`);
             setIsChatActive(false);
             setApiKeyPromptVisible(true); // Always show API key prompt on critical error
-            closeSession();
+            stopChat(); // Stop the chat internally
           },
           onclose: (e: CloseEvent) => {
             console.debug('Live API Closed:', e);
@@ -442,7 +477,8 @@ const LiveChat: React.FC = () => {
               setStatusMessage('Conversation session closed.');
             }
             setIsChatActive(false);
-            closeSession();
+            // No need to call stopChat() here, as `closeSession()` is handled.
+            // onCloseChat() will be handled by the parent if the button was clicked.
           },
         },
         config: {
@@ -453,6 +489,7 @@ const LiveChat: React.FC = () => {
           systemInstruction: systemInstruction,
           inputAudioTranscription: {}, // Enable transcription for user input audio.
           outputAudioTranscription: {}, // Enable transcription for model output audio.
+          tools: [{googleSearch: {}}], // Enable Google Search
         },
       });
 
@@ -461,42 +498,38 @@ const LiveChat: React.FC = () => {
       setStatusMessage(`Failed to start conversation: ${error.message || 'Unknown error'}. Please ensure microphone access and a valid API key.`);
       setIsChatActive(false);
       setApiKeyPromptVisible(true); // For any error starting the session, prompt for API key
-      closeSession();
+      stopChat(); // Stop the chat internally
     }
   };
 
-  const stopChat = () => {
-    setIsChatActive(false);
-    closeSession();
-  };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 max-w-2xl mx-auto border border-indigo-200">
       <h2 className="text-2xl font-bold text-indigo-700 mb-4 text-center">AI Conversation about Responsible AI</h2>
 
       <div ref={scrollRef} className="h-80 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50 text-left">
-        {conversationHistory.length === 0 && !isChatActive && (
+        {conversationHistory.length === 0 && !isChatActive && !apiKeyPromptVisible && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500 text-center italic">Start a conversation to hear Anna discuss Responsible AI.</p>
+            <p className="text-gray-500 text-center italic">Waiting to connect to Anna...</p>
           </div>
         )}
-        {isChatActive && conversationHistory.length === 0 && (
+        {isChatActive && conversationHistory.length === 0 && !apiKeyPromptVisible ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <svg className="animate-spin h-8 w-8 text-indigo-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+              <svg className="animate-spin h-8 w-8 text-indigo-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
             <p className="text-lg font-semibold text-indigo-700">{statusMessage}</p>
             <p className="text-gray-500 text-sm mt-1">This may take a few seconds.</p>
           </div>
-        )}
+        ) : null}
         {conversationHistory.map((turn, index) => (
           <div key={index} className={`mb-2 ${turn.speaker === 'user' ? 'text-right' : 'text-left'}`}>
             <span className={`inline-block p-2 rounded-lg max-w-[80%] ${
               turn.speaker === 'user' ? 'bg-indigo-100 text-indigo-800' :
               'bg-green-100 text-green-800' // For 'Anna'
             }`}>
-              <strong className="font-semibold">{turn.speaker === 'user' ? 'You' : 'Anna'}:</strong> {turn.text}
+              <strong className="font-semibold">{turn.speaker === 'user' ? 'You' : 'Anna'}:</strong> {renderTextWithClickableLinks(turn.text)}
             </span>
           </div>
         ))}
@@ -561,34 +594,30 @@ const LiveChat: React.FC = () => {
       </div>
 
       <div className="flex justify-center gap-4">
-        {!isChatActive ? (
+        {isChatActive ? (
           <button
-            onClick={startChat}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded-full shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-green-300"
-            aria-label="Start AI conversation"
-          >
-            Start Conversation
-          </button>
-        ) : (
-          <button
-            onClick={stopChat}
+            onClick={() => { stopChat(); onCloseChat(); }} // Stop chat and close parent component
             className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-full shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-red-300"
-            aria-label="Stop AI conversation"
+            aria-label="End AI conversation"
           >
             End Conversation
           </button>
+        ) : (
+          // Only show the API key prompt button if it's visible, otherwise no button here.
+          apiKeyPromptVisible && (
+            <button
+              onClick={handleApiKeySelection}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-yellow-300"
+            >
+              Select API Key
+            </button>
+          )
         )}
       </div>
 
       {apiKeyPromptVisible && (
         <div role="alert" className="mt-4 p-4 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-300 text-center">
           <p className="mb-2">It looks like there might be an issue with the API key or billing. Please ensure your API key is correctly configured and billing is enabled.</p>
-          <button
-            onClick={handleApiKeySelection}
-            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-yellow-300"
-          >
-            Select API Key
-          </button>
           <p className="mt-2 text-sm">
             Learn more about billing at{' '}
             <a
