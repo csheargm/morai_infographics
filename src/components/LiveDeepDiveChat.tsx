@@ -372,6 +372,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
       source.connect(scriptProcessor);
       scriptProcessor.connect(inputAudioCtx.destination);
 
+      // Use localized system instruction
       const systemInstruction = getDeepDiveSystemInstruction(principle.title);
 
       sessionPromiseRef.current = ai.live.connect({
@@ -498,7 +499,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
     return () => {
       stopLiveDeepDiveChat();
     };
-  }, [principle.title, getDeepDiveAnnaPrompt, getDeepDiveSystemInstruction]); // Added translation functions to dependencies
+  }, [principle.title, getDeepDiveAnnaPrompt, getDeepDiveSystemInstruction, t]);
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 w-full max-w-2xl mx-auto border border-indigo-200 relative">

@@ -312,7 +312,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
       outputGainNode.connect(outputAudioCtx.destination);
       outputGainNode.gain.value = volume;
 
-      const initialAnnaPrompt = getInitialAnnaPrompt();
+      const initialAnnaPrompt = getInitialAnnaPrompt(); // Use localized prompt
       setStatusMessage(t('statusAnnaIntroReady'));
       try {
         const initialResponse = await ai.models.generateContent({
@@ -376,7 +376,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
       source.connect(scriptProcessor);
       scriptProcessor.connect(inputAudioCtx.destination);
 
-      const systemInstruction = getSystemInstruction();
+      const systemInstruction = getSystemInstruction(); // Use localized system instruction
 
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
