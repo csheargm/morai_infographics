@@ -305,6 +305,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
       outputGainNode.connect(outputAudioCtx.destination);
       outputGainNode.gain.value = volume;
 
+      // Use the prompt from the language context directly
       const introText = getDeepDiveAnnaPrompt(principle.title);
       setStatusMessage(t('statusAnnaIntroReady'));
       try {
@@ -497,7 +498,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
     return () => {
       stopLiveDeepDiveChat();
     };
-  }, [principle.title]);
+  }, [principle.title, getDeepDiveAnnaPrompt, getDeepDiveSystemInstruction]); // Added translation functions to dependencies
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 w-full max-w-2xl mx-auto border border-indigo-200 relative">
