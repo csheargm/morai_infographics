@@ -3,14 +3,16 @@ import { RESPONSIBLE_AI_PRINCIPLES } from './constants';
 import InfographicCard from './components/InfographicCard';
 import LiveChat from './components/LiveChat';
 import PrincipleDetailPopover from './components/PrincipleDetailPopover';
-import DeepDiveChatModal from './components/DeepDiveChatModal'; // New import
+import LiveDeepDiveChat from './components/LiveDeepDiveChat'; // Renamed import
 import { Principle } from './types';
 
+// Define chat modes
+type ChatMode = 'none' | 'live' | 'deepDive';
+
 function App() {
-  const [showLiveChat, setShowLiveChat] = useState(false);
+  const [activeChatMode, setActiveChatMode] = useState<ChatMode>('none');
+  const [activeDeepDivePrinciple, setActiveDeepDivePrinciple] = useState<Principle | null>(null);
   const [hoveredPrincipleInfo, setHoveredPrincipleInfo] = useState<{ principle: Principle, rect: DOMRect } | null>(null);
-  const [showDeepDiveChat, setShowDeepDiveChat] = useState(false); // New state for deep dive modal
-  const [selectedDeepDivePrinciple, setSelectedDeepDivePrinciple] = useState<Principle | null>(null); // New state for deep dive principle
   const dismissTimeoutRef = useRef<number | null>(null); // Ref to store timeout ID
 
   // Function to clear the dismissal timeout
@@ -46,23 +48,28 @@ function App() {
     setHoveredPrincipleInfo(null); // Immediately dismiss popover
   }, [clearTimeoutHandler]);
 
-  // Handler for closing the LiveChat from within the LiveChat component
-  const handleCloseLiveChat = useCallback(() => {
-    setShowLiveChat(false);
+  // Handler to close any active chat
+  const handleCloseChat = useCallback(() => {
+    setActiveChatMode('none');
+    setActiveDeepDivePrinciple(null);
   }, []);
 
   // Handler to open Deep Dive Chat
   const handleOpenDeepDiveChat = useCallback((principle: Principle) => {
-    setSelectedDeepDivePrinciple(principle);
-    setShowDeepDiveChat(true);
+    setActiveDeepDivePrinciple(principle);
+    setActiveChatMode('deepDive');
     setHoveredPrincipleInfo(null); // Dismiss popover when deep dive chat opens
   }, []);
-
-  // Handler to close Deep Dive Chat
-  const handleCloseDeepDiveChat = useCallback(() => {
-    setShowDeepDiveChat(false);
-    setSelectedDeepDivePrinciple(null);
-  }, []);
+  
+  // Handler to toggle Live Chat (will close any active chat, or start a new live chat)
+  const handleToggleLiveChat = useCallback(() => {
+    if (activeChatMode !== 'none') {
+      handleCloseChat(); // Close current chat if active
+    } else {
+      setActiveChatMode('live'); // Otherwise, start new live chat
+      setActiveDeepDivePrinciple(null); // Ensure deep dive principle is cleared
+    }
+  }, [activeChatMode, handleCloseChat]);
 
 
   return (
@@ -87,19 +94,27 @@ function App() {
         ))}
       </main>
 
-      {/* Live Chat Section */}
+      {/* Unified Chat Section */}
       <section className="mt-16 text-center">
         <button
-          onClick={() => setShowLiveChat(!showLiveChat)}
+          onClick={handleToggleLiveChat}
           className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-300"
-          aria-expanded={showLiveChat}
-          aria-controls="live-chat-panel"
+          aria-expanded={activeChatMode !== 'none'}
+          aria-controls="ai-chat-panel"
         >
-          {showLiveChat ? 'Close AI Conversation' : 'Start AI Conversation'}
+          {activeChatMode === 'none' ? 'Start AI Conversation' : 'Close AI Conversation'}
         </button>
-        {showLiveChat && (
-          <div id="live-chat-panel" className="mt-8">
-            <LiveChat onCloseChat={handleCloseLiveChat} />
+        {(activeChatMode === 'live' || activeChatMode === 'deepDive') && (
+          <div id="ai-chat-panel" className="mt-8">
+            {activeChatMode === 'live' && (
+              <LiveChat onCloseChat={handleCloseChat} />
+            )}
+            {activeChatMode === 'deepDive' && activeDeepDivePrinciple && (
+              <LiveDeepDiveChat // Used LiveDeepDiveChat here
+                principle={activeDeepDivePrinciple}
+                onClose={handleCloseChat}
+              />
+            )}
           </div>
         )}
       </section>
@@ -117,14 +132,6 @@ function App() {
           onMouseEnterPopover={handlePopoverMouseEnter}
           onMouseLeavePopover={handlePopoverMouseLeave}
           onOpenDeepDiveChat={handleOpenDeepDiveChat} // Pass handler for deep dive chat
-        />
-      )}
-
-      {/* Deep Dive Chat Modal */}
-      {showDeepDiveChat && selectedDeepDivePrinciple && (
-        <DeepDiveChatModal
-          principle={selectedDeepDivePrinciple}
-          onClose={handleCloseDeepDiveChat}
         />
       )}
     </div>
