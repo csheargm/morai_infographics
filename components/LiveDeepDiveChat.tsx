@@ -130,7 +130,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const initialDeepDiveAnnaPrompt = useCallback((principleTitle: string) =>
-    `Hello! I'm Anna, your guide for a deep dive into the Responsible AI principle of ${principleTitle}. Ask me anything, and I'll provide comprehensive insights and examples. Crucially, keep your initial responses concise, around 1-2 sentences. After each response, explicitly ask the user if they would like more details or examples about ${principleTitle}. Let's begin!`,
+    `Hello! I'm Anna, your guide for a deep dive into the Responsible AI principle of ${principleTitle}. Ask me anything, and I'll provide comprehensive insights and examples. Let's begin!`,
     []
   );
 
