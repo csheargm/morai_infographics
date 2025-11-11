@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode } from 'react';
-import en from '../locales/en.json';
-import zh from '../locales/zh.json';
+import en from '../locales/en'; // Changed from '../locales/en.json'
+import zh from '../locales/zh'; // Changed from '../locales/zh.json'
 // FIX: No need to import AIStudio here; it's declared globally in types.ts
 
 type Locale = typeof en; // Type for the translation data structure

@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import InfographicCard from './components/InfographicCard';
+import InfographicCard from '../components/InfographicCard';
 import LiveChat from './components/LiveChat';
 import PrincipleDetailPopover from './components/PrincipleDetailPopover';
 import LiveDeepDiveChat from './components/LiveDeepDiveChat';
