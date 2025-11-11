@@ -485,8 +485,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           systemInstruction: systemInstruction,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          // Deep dive specifically *does not* use googleSearch.
-          // tools: [{googleSearch: {}}], // Excluded for deep dive as per persona
+          tools: [{googleSearch: {}}], // Excluded for deep dive as per persona
         },
       });
 
