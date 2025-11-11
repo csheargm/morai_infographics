@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob as GenAIBlob } from '@google/genai';
 import { Principle, ChatTurn } from '../types';
+import { useLanguage } from '../context/LanguageContext'; // Import useLanguage
 
 // Helper functions for audio encoding/decoding (copied from LiveChat.tsx)
 function decode(base64: string): Uint8Array {
@@ -102,8 +103,10 @@ interface LiveDeepDiveChatProps {
 }
 
 const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose }) => {
+  const { t, getDeepDiveAnnaPrompt, getDeepDiveSystemInstruction } = useLanguage(); // Use useLanguage hook
+
   const [isChatActive, setIsChatActive] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('Initializing deep dive...');
+  const [statusMessage, setStatusMessage] = useState(t('deepDiveInitializing'));
   const [currentInputTranscription, setCurrentInputTranscription] = useState('');
   const [currentOutputTranscription, setCurrentOutputTranscription] = useState('');
   const [conversationHistory, setConversationHistory] = useState<ChatTurn[]>([]);
@@ -126,13 +129,9 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
   const transcriptionHistoryRef = useRef<ChatTurn[]>([]);
   const currentInputTranscriptionRef = useRef('');
   const currentOutputTranscriptionRef = useRef('');
+  const hasInitializedRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const initialDeepDiveAnnaPrompt = useCallback((principleTitle: string) =>
-    `Hello! I'm Anna, your guide for a deep dive into the Responsible AI principle of ${principleTitle}. Ask me anything, and I'll provide comprehensive insights and examples. Let's begin!`,
-    []
-  );
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -181,19 +180,19 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
     transcriptionHistoryRef.current = [];
     currentInputTranscriptionRef.current = '';
     currentOutputTranscriptionRef.current = '';
-    setStatusMessage('Initializing deep dive...');
+    setStatusMessage(t('deepDiveInitializing'));
     setIsPlaying(true);
     setIsLoading(false);
-  }, []);
+  }, [t]);
 
   const handleApiKeySelection = async () => {
     if (window.aistudio && window.aistudio.openSelectKey) {
       await window.aistudio.openSelectKey();
       setApiKeyPromptVisible(false);
-      setStatusMessage('API Key selected. Attempting to restart deep dive...');
-      startLiveDeepDiveChat(); // Attempt to restart after key selection
+      setStatusMessage(t('statusApiKeySelected'));
+      startLiveDeepDiveChat();
     } else {
-      setStatusMessage('API Key selection tool not available.');
+      setStatusMessage(t('statusFailedToStart', 'API Key selection tool not available.'));
     }
   };
 
@@ -209,29 +208,29 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
     sourceNode.addEventListener('ended', () => {
       outputSourcesRef.current.delete(sourceNode);
       if (outputSourcesRef.current.size === 0 && pendingAudioQueueRef.current.length === 0 && isPlaying) {
-        setStatusMessage(`Deep Dive on ${principle.title}: Listening...`);
+        setStatusMessage(t('deepDiveListening', principle.title));
       }
     });
 
     sourceNode.start(nextStartTimeRef.current);
     nextStartTimeRef.current = nextStartTimeRef.current + audioBuffer.duration;
     outputSourcesRef.current.add(sourceNode);
-    setStatusMessage('Anna is speaking...');
-  }, [isPlaying, principle.title]);
+    setStatusMessage(t('statusAnnaSpeaking'));
+  }, [isPlaying, principle.title, t]);
 
   const togglePlayPause = useCallback(() => {
     setIsPlaying(prevIsPlaying => {
       const newIsPlaying = !prevIsPlaying;
       if (!outputAudioContextRef.current) return newIsPlaying;
 
-      if (!newIsPlaying) { // Pausing
+      if (!newIsPlaying) {
         outputSourcesRef.current.forEach(sourceNode => {
           sourceNode.stop();
           outputSourcesRef.current.delete(sourceNode);
         });
-        setStatusMessage('Paused.');
+        setStatusMessage(t('statusPaused'));
         outputAudioContextRef.current.suspend().catch(console.error);
-      } else { // Resuming
+      } else {
         outputAudioContextRef.current.resume().catch(console.error);
         nextStartTimeRef.current = outputAudioContextRef.current.currentTime;
 
@@ -242,14 +241,14 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           }
         }
         if (currentOutputTranscriptionRef.current || outputSourcesRef.current.size > 0) {
-          setStatusMessage('Anna is speaking...');
+          setStatusMessage(t('statusAnnaSpeaking'));
         } else {
-          setStatusMessage(`Deep Dive on ${principle.title}: Listening...`);
+          setStatusMessage(t('deepDiveListening', principle.title));
         }
       }
       return newIsPlaying;
     });
-  }, [scheduleAudioPlayback, principle.title]);
+  }, [scheduleAudioPlayback, principle.title, t]);
 
   const handleVolumeChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(event.target.value);
@@ -269,23 +268,23 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
 
     setIsChatActive(true);
     setIsPlaying(true);
-    setIsLoading(true); // Set isLoading to true at the beginning of the chat initialization.
-    setStatusMessage('Connecting...');
+    setIsLoading(true);
+    setStatusMessage(t('deepDiveConnecting'));
     setApiKeyPromptVisible(false);
 
     try {
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (!hasKey) {
-          setStatusMessage('No API Key selected. Please select an API key to start.');
+          setStatusMessage(t('statusNoApiKey'));
           setApiKeyPromptVisible(true);
           setIsChatActive(false);
-          setIsLoading(false); // Ensure isLoading is set to false if API key check fails.
+          setIsLoading(false);
           return;
         }
       }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -307,9 +306,9 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
       outputGainNode.connect(outputAudioCtx.destination);
       outputGainNode.gain.value = volume;
 
-      // --- Play Anna's initial introduction using generateContent for TTS ---
-      setStatusMessage('Getting Anna\'s introduction ready...');
-      const introText = initialDeepDiveAnnaPrompt(principle.title);
+      // Use the prompt from the language context directly
+      const introText = getDeepDiveAnnaPrompt(principle.title);
+      setStatusMessage(t('statusAnnaIntroReady'));
       try {
         const initialResponse = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
@@ -346,14 +345,12 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
         }
       } catch (error) {
           console.error("Error generating or processing Anna's deep dive introduction via TTS:", error);
-          setStatusMessage("Could not play introduction audio. Displaying text instead.");
+          setStatusMessage(t('statusFailedToStart', 'Could not play introduction audio. Displaying text instead.'));
           setConversationHistory([{ speaker: 'Anna', text: introText }]);
           transcriptionHistoryRef.current = [{ speaker: 'Anna', text: introText }];
       } finally {
-          setIsLoading(false); // Set isLoading to false after Anna's introduction is handled.
+          setIsLoading(false);
       }
-      // --- End of Anna's initial introduction ---
-
 
       const source = inputAudioCtx.createMediaStreamSource(stream);
       mediaStreamSourceRef.current = source;
@@ -367,7 +364,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           session.sendRealtimeInput({ media: pcmBlob });
         }).catch((e: any) => {
           console.error("Error sending input:", e);
-          setStatusMessage('API Key issue or network error. Please select an API key.');
+          setStatusMessage(t('apiKeyIssueTitle'));
           setApiKeyPromptVisible(true);
           stopLiveDeepDiveChat();
         });
@@ -376,18 +373,18 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
       source.connect(scriptProcessor);
       scriptProcessor.connect(inputAudioCtx.destination);
 
-      const systemInstruction = `You are Anna, an expert AI assistant specializing in the Responsible AI principle of ${principle.title}. Your goal is to provide in-depth explanations, examples, and answer complex questions related to ${principle.title}. Crucially, keep your initial responses concise, around 1-2 sentences. After each response, explicitly ask the user if they would like more details or examples about ${principle.title}. Use your advanced reasoning capabilities. Do not offer to search the web, focus purely on this principle.`;
+      // Use localized system instruction
+      const systemInstruction = getDeepDiveSystemInstruction(principle.title);
 
       sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
           onopen: () => {
             console.debug('Deep Dive Live API session opened.');
-            // Only update status if not currently displaying Anna's intro (which is handled by finally block earlier)
             if (!isLoading && !currentOutputTranscriptionRef.current && isPlaying) {
-              setStatusMessage(`Deep Dive on ${principle.title}: Listening...`);
+              setStatusMessage(t('deepDiveListening', principle.title));
             } else if (!isPlaying) {
-              setStatusMessage('Paused.');
+              setStatusMessage(t('statusPaused'));
             }
           },
           onmessage: async (message: LiveServerMessage) => {
@@ -420,9 +417,9 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
               setCurrentOutputTranscription('');
 
               if (isPlaying) {
-                setStatusMessage(`Deep Dive on ${principle.title}: Listening...`);
+                setStatusMessage(t('deepDiveListening', principle.title));
               } else {
-                setStatusMessage('Paused.');
+                setStatusMessage(t('statusPaused'));
               }
             }
 
@@ -443,7 +440,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
                 }
               } catch (audioDecodeError) {
                 console.error("Error decoding audio data:", audioDecodeError);
-                setStatusMessage('Error processing audio response.');
+                setStatusMessage(t('statusError', 'Error processing audio response.'));
               }
             }
 
@@ -455,26 +452,26 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
               });
               pendingAudioQueueRef.current = [];
               nextStartTimeRef.current = 0;
-              setStatusMessage('Interrupted. Listening...');
+              setStatusMessage(t('statusInterrupted'));
             }
           },
           onerror: (e: ErrorEvent) => {
             console.error('Deep Dive Live API Error:', e);
-            setStatusMessage(`Error: ${e.message}. See console for details.`);
+            setStatusMessage(t('statusError', e.message));
             setIsChatActive(false);
             setApiKeyPromptVisible(true);
             stopLiveDeepDiveChat();
-            setIsLoading(false); // Ensure isLoading is set to false if an error occurs during the live session.
+            setIsLoading(false);
           },
           onclose: (e: CloseEvent) => {
             console.debug('Deep Dive Live API Closed:', e);
             if (isChatActive) {
-              setStatusMessage('Deep Dive conversation ended unexpectedly.');
+              setStatusMessage(t('statusConversationEnded'));
             } else {
-              setStatusMessage('Deep Dive conversation session closed.');
+              setStatusMessage(t('statusSessionClosed'));
             }
             setIsChatActive(false);
-            setIsLoading(false); // Ensure isLoading is set to false if the session closes.
+            setIsLoading(false);
           },
         },
         config: {
@@ -485,35 +482,39 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           systemInstruction: systemInstruction,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          tools: [{googleSearch: {}}], // Excluded for deep dive as per persona
+          tools: [{googleSearch: {}}],
         },
       });
 
     } catch (error: any) {
       console.error("Failed to start Deep Dive Live API session:", error);
-      setStatusMessage(`Failed to start conversation: ${error.message || 'Unknown error'}. Please ensure microphone access and a valid API key.`);
+      setStatusMessage(t('statusFailedToStart', error.message || 'Unknown error'));
       setIsChatActive(false);
       setApiKeyPromptVisible(true);
       stopLiveDeepDiveChat();
-      setIsLoading(false); // Ensure isLoading is set to false if there's an error starting the session.
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    startLiveDeepDiveChat();
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      startLiveDeepDiveChat();
+    }
     return () => {
+      hasInitializedRef.current = false;
       stopLiveDeepDiveChat();
     };
-  }, [principle.title]); // Re-start if principle changes
+  }, [principle.title, getDeepDiveAnnaPrompt, getDeepDiveSystemInstruction, t]);
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 w-full max-w-2xl mx-auto border border-indigo-200 relative">
-      <h2 className="text-2xl font-bold text-indigo-700 mb-4 text-center">Deep Dive: {principle.title}</h2>
+      <h2 className="text-2xl font-bold text-indigo-700 mb-4 text-center">{t('deepDiveTitle', principle.title)}</h2>
 
       <div ref={scrollRef} className="h-80 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50 text-left">
         {conversationHistory.length === 0 && !isChatActive && !apiKeyPromptVisible && !isLoading && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500 text-center italic">Waiting to connect for deep dive...</p>
+            <p className="text-gray-500 text-center italic">{t('waitingToConnectDeepDive')}</p>
           </div>
         )}
         {isLoading ? (
@@ -523,7 +524,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             <p className="text-lg font-semibold text-indigo-700">{statusMessage}</p>
-            <p className="text-gray-500 text-sm mt-1">This may take a few seconds.</p>
+            <p className="text-gray-500 text-sm mt-1">{t('thisMayTakeASeconds')}</p>
           </div>
         ) : null}
         {conversationHistory.map((turn, index) => (
@@ -532,21 +533,21 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
               turn.speaker === 'user' ? 'bg-indigo-100 text-indigo-800' :
               'bg-green-100 text-green-800'
             }`}>
-              <strong className="font-semibold">{turn.speaker === 'user' ? 'You' : 'Anna'}:</strong> {renderTextWithClickableLinks(turn.text)}
+              <strong className="font-semibold">{turn.speaker === 'user' ? t('you') : t('anna')}:</strong> {renderTextWithClickableLinks(turn.text)}
             </span>
           </div>
         ))}
         {currentInputTranscription && (
           <div className="mb-2 text-right animate-pulse">
             <span className="inline-block p-2 rounded-lg bg-indigo-100 text-indigo-800 opacity-75 max-w-[80%]">
-              <strong className="font-semibold">You:</strong> {currentInputTranscription}
+              <strong className="font-semibold">{t('you')}:</strong> {currentInputTranscription}
             </span>
           </div>
         )}
         {currentOutputTranscription && (
           <div className="mb-2 text-left animate-pulse">
             <span className="inline-block p-2 rounded-lg bg-gray-200 text-gray-800 opacity-75 max-w-[80%]">
-              <strong className="font-semibold">Anna Speaking:</strong> {currentOutputTranscription}
+              <strong className="font-semibold">{t('annaSpeaking')}:</strong> {currentOutputTranscription}
             </span>
           </div>
         )}
@@ -560,8 +561,8 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
         <button
           onClick={togglePlayPause}
           className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-gray-300"
-          aria-label={isPlaying ? "Pause audio" : "Play audio"}
-          disabled={!isChatActive || isLoading} // Disable while initializing
+          aria-label={isPlaying ? t('pauseAudio') : t('playAudio')}
+          disabled={!isChatActive || isLoading}
         >
           {isPlaying ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -574,7 +575,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           )}
         </button>
         <div className="flex items-center gap-2">
-          <label htmlFor="deep-dive-volume-slider" className="sr-only">Volume</label>
+          <label htmlFor="deep-dive-volume-slider" className="sr-only">{t('volumeControl')}</label>
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.616 5.06a1 1 0 01.121 1.403A6.974 6.974 0 0016 10c0 2.378-.85 4.54-2.264 6.257a1 1 0 01-1.48-1.304A4.978 4.978 0 0114 10c0-1.577-.53-3.003-1.404-4.184a1 1 0 011.291-1.556zM16.924 3.08a1 1 0 01.12 1.412A9.002 9.002 0 0019 10c0 3.25-.978 6.208-2.656 8.006a1 1 0 01-1.536-1.298A7.003 7.003 0 0117 10c0-2.697-.837-5.174-2.273-7.258a1 1 0 011.203-1.522z" clipRule="evenodd" />
           </svg>
@@ -587,11 +588,11 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
             value={volume}
             onChange={handleVolumeChange}
             className="w-24 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer range-sm"
-            aria-label="Volume control"
+            aria-label={t('volumeControl')}
             aria-valuemin={0}
             aria-valuemax={1}
             aria-valuenow={volume}
-            disabled={!isChatActive || isLoading} // Disable while initializing
+            disabled={!isChatActive || isLoading}
           />
         </div>
       </div>
@@ -601,9 +602,9 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           <button
             onClick={() => { stopLiveDeepDiveChat(); onClose(); }}
             className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-full shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-red-300"
-            aria-label="Close Deep Dive Chat"
+            aria-label={t('closeDeepDive')}
           >
-            Close Deep Dive
+            {t('closeDeepDive')}
           </button>
         ) : (
           apiKeyPromptVisible && (
@@ -611,7 +612,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
               onClick={handleApiKeySelection}
               className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-yellow-300"
             >
-              Select API Key
+              {t('selectApiKey')}
             </button>
           )
         )}
@@ -619,9 +620,9 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
 
       {apiKeyPromptVisible && (
         <div role="alert" className="mt-4 p-4 bg-yellow-100 text-yellow-800 rounded-lg border border-yellow-300 text-center">
-          <p className="mb-2">It looks like there might be an issue with the API key or billing. Please ensure your API key is correctly configured and billing is enabled.</p>
+          <p className="mb-2">{t('apiKeyIssueMessage')}</p>
           <p className="mt-2 text-sm">
-            Learn more about billing at{' '}
+            {t('learnMoreBilling')}{' '}
             <a
               href="https://ai.google.dev/gemini-api/docs/billing"
               target="_blank"
