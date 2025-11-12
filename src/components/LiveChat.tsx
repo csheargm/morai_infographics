@@ -280,9 +280,21 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
     setApiKeyPromptVisible(false);
 
     try {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
+      // Check if API key is available (either from env or AI Studio)
+      const apiKey = import.meta.env.VITE_API_KEY;
+
+      if (!apiKey) {
+        // Only check AI Studio if environment variable is not available
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          if (!hasKey) {
+            setStatusMessage(t('statusNoApiKey'));
+            setApiKeyPromptVisible(true);
+            setIsChatActive(false);
+            return;
+          }
+        } else {
+          // No API key available from either source
           setStatusMessage(t('statusNoApiKey'));
           setApiKeyPromptVisible(true);
           setIsChatActive(false);
@@ -290,7 +302,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
         }
       }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;

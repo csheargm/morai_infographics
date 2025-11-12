@@ -95,7 +95,11 @@ const PrincipleDetailPopover: React.FC<PrincipleDetailPopoverProps> = ({
     setMoreExamples(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = import.meta.env.VITE_API_KEY;
+      if (!apiKey) {
+        throw new Error('API key not configured');
+      }
+      const ai = new GoogleGenAI({ apiKey });
       // Use t() for the prompt string
       const prompt = t('generateExamplesPrompt', principle.title, principle.description);
       const response = await ai.models.generateContent({
