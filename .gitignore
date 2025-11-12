@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
+.env
+
+# Development tools
+.claude/
+nul
+
+# Standalone files
+standalone.html

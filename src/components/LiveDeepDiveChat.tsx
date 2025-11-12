@@ -129,6 +129,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
   const transcriptionHistoryRef = useRef<ChatTurn[]>([]);
   const currentInputTranscriptionRef = useRef('');
   const currentOutputTranscriptionRef = useRef('');
+  const hasInitializedRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -283,7 +284,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
         }
       }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -481,6 +482,7 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
           systemInstruction: systemInstruction,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          tools: [{googleSearch: {}}],
         },
       });
 
@@ -495,8 +497,12 @@ const LiveDeepDiveChat: React.FC<LiveDeepDiveChatProps> = ({ principle, onClose 
   };
 
   useEffect(() => {
-    startLiveDeepDiveChat();
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      startLiveDeepDiveChat();
+    }
     return () => {
+      hasInitializedRef.current = false;
       stopLiveDeepDiveChat();
     };
   }, [principle.title, getDeepDiveAnnaPrompt, getDeepDiveSystemInstruction, t]);
