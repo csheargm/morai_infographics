@@ -29,9 +29,13 @@ function AppWrapper() {
 
   // Handler for when mouse enters a card
   const handleCardMouseEnter = useCallback((principle: Principle, rect: DOMRect) => {
+    // Don't show popover if a chat is active
+    if (activeChatMode !== 'none') {
+      return;
+    }
     clearTimeoutHandler();
     setHoveredPrincipleInfo({ principle, rect });
-  }, [clearTimeoutHandler]);
+  }, [clearTimeoutHandler, activeChatMode]);
 
   // Handler for when mouse leaves a card
   const handleCardMouseLeave = useCallback(() => {
@@ -56,15 +60,18 @@ function AppWrapper() {
   const handleCloseChat = useCallback(() => {
     setActiveChatMode('none');
     setActiveDeepDivePrinciple(null);
-  }, []);
+    // Clear any timeout to ensure clean state
+    clearTimeoutHandler();
+  }, [clearTimeoutHandler]);
 
   // Handler to open Deep Dive Chat
   const handleOpenDeepDiveChat = useCallback((principle: Principle) => {
     setActiveDeepDivePrinciple(principle);
     setActiveChatMode('deepDive');
-    setHoveredPrincipleInfo(null);
-  }, []);
-  
+    setHoveredPrincipleInfo(null); // Close popover when opening chat
+    clearTimeoutHandler();
+  }, [clearTimeoutHandler]);
+
   // Handler to toggle Live Chat (will close any active chat, or start a new live chat)
   const handleToggleLiveChat = useCallback(() => {
     if (activeChatMode !== 'none') {
@@ -72,8 +79,10 @@ function AppWrapper() {
     } else {
       setActiveChatMode('live');
       setActiveDeepDivePrinciple(null);
+      setHoveredPrincipleInfo(null); // Close popover when opening chat
+      clearTimeoutHandler();
     }
-  }, [activeChatMode, handleCloseChat]);
+  }, [activeChatMode, handleCloseChat, clearTimeoutHandler]);
 
 
   return (

@@ -39,7 +39,7 @@ const PrincipleDetailPopover: React.FC<PrincipleDetailPopoverProps> = ({
   useEffect(() => {
     if (popoverRef.current && rect) {
       const viewportWidth = window.innerWidth;
-      const scrollY = window.scrollY; // Current scroll position
+      const viewportHeight = window.innerHeight;
       const padding = 20; // Padding from viewport edges
 
       // --- 1. Calculate the popover's effective width for layout calculations ---
@@ -49,8 +49,8 @@ const PrincipleDetailPopover: React.FC<PrincipleDetailPopoverProps> = ({
 
       // This is the width we *expect* the popover to render at given its constraints
       let effectivePopoverWidth = Math.min(
-        proportionalWidth, 
-        maxContentWidth, 
+        proportionalWidth,
+        maxContentWidth,
         viewportWidth - (2 * padding)
       );
       effectivePopoverWidth = Math.max(effectivePopoverWidth, minContentWidth);
@@ -69,22 +69,54 @@ const PrincipleDetailPopover: React.FC<PrincipleDetailPopoverProps> = ({
 
       // --- 5. Determine transformX based on whether it was clamped ---
       let transformX = '-50%'; // Default: apply transform to truly center it
-      
+
       // If finalLeft is very close to minLeftAllowed or maxLeftAllowed, it means it was clamped.
       // Use a small epsilon for floating-point comparison, or just direct comparison for boundaries.
       if (finalLeft <= minLeftAllowed + 1 || finalLeft >= maxLeftAllowed - 1) { // Adding a small buffer for safety
          transformX = '0%'; // It's at an edge, so position its left edge directly.
       }
 
+      // --- 6. Calculate vertical position and check if popover fits below card ---
+      const gapBelowCard = 4; // Gap between card and popover
+
+      // Check available space below the card
+      const spaceBelow = viewportHeight - rect.bottom - gapBelowCard;
+
+      // Check available space above the card
+      const spaceAbove = rect.top - gapBelowCard;
+
+      // Determine maximum height based on available space
+      let maxHeight: number;
+      let topPosition: number;
+      let transformY = '';
+
+      // Prefer positioning below if there's more space or equal space
+      if (spaceBelow >= spaceAbove) {
+        // Position below the card
+        topPosition = rect.bottom + gapBelowCard;
+        maxHeight = spaceBelow - padding;
+        transformY = '';
+      } else {
+        // Position above the card
+        topPosition = rect.top - gapBelowCard;
+        maxHeight = spaceAbove - padding;
+        transformY = ' translateY(-100%)';
+      }
+
+      // Ensure minimum usable height
+      maxHeight = Math.max(maxHeight, 200);
 
       setCalculatedStyle({
         position: 'fixed',
-        top: rect.bottom + scrollY + 15, // 15px below the card
-        left: finalLeft, // Apply the clamped left position
-        transform: `translateX(${transformX})`, // Apply the determined transform
+        top: topPosition,
+        left: finalLeft,
+        transform: `translateX(${transformX})${transformY}`,
         zIndex: 1000,
-        maxWidth: `${effectivePopoverWidth}px`, // Apply the calculated max-width
-        minWidth: '280px', // Ensure min-width for readability
+        maxWidth: `${effectivePopoverWidth}px`,
+        minWidth: '280px',
+        maxHeight: `${maxHeight}px`,
+        overflowY: 'auto', // Enable vertical scrolling
+        overflowX: 'hidden', // Prevent horizontal scrolling
       });
     }
   }, [principleInfo.rect, rect]); // Recalculate if principleInfo.rect (card position) changes
