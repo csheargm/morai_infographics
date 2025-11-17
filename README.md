@@ -1,17 +1,16 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Responsible AI Demo Tool
 
-# Run and deploy your AI Studio app
+## Demo Link
 
-This contains everything you need to run your app locally.
+<https://csheargm.github.io/morai_infographics/>
 
-View your app in AI Studio: https://ai.studio/apps/drive/1oQhZTd-d9RsimvrVJiSOmEO5rjN_bPQW
+## Introduction
+
+This is a responsible AI demo tool that incorporates AI features such as voice, conversational AI, and search to demonstrate using AI capabilities to have more engaging content for strategic messaging and delivery. This tool makes use of Google AI services, AI Studio, and Claude for the demo development.
 
 ## Run Locally
 
 **Prerequisites:**  Node.js
-
 
 1. Install dependencies:
    `npm install`
