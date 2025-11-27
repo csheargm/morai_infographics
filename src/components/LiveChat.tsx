@@ -280,7 +280,9 @@ const LiveChat: React.FC<LiveChatProps> = ({ onCloseChat }) => {
     setApiKeyPromptVisible(false);
 
     try {
-      // Check if API key is available (either from env or AI Studio)
+      // Note: This is intentionally a free-tier, rate-limited Google AI API key.
+      // Since anyone can generate their own free key and this one has usage limits,
+      // exposing it client-side poses minimal security risk.
       const apiKey = import.meta.env.VITE_API_KEY;
 
       if (!apiKey) {

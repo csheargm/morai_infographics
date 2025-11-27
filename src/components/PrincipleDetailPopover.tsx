@@ -127,6 +127,9 @@ const PrincipleDetailPopover: React.FC<PrincipleDetailPopoverProps> = ({
     setMoreExamples(null);
 
     try {
+      // Note: This is intentionally a free-tier, rate-limited Google AI API key.
+      // Since anyone can generate their own free key and this one has usage limits,
+      // exposing it client-side poses minimal security risk.
       const apiKey = import.meta.env.VITE_API_KEY;
       if (!apiKey) {
         throw new Error('API key not configured');
